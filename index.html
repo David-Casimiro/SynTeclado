@@ -23,13 +23,13 @@ html,body{
 }
 label{font-size:.65rem;color:#9ca3af}
 input[type=range]{width:100%}
-select,button,input{
+select,button{
  background:#020617;
  border:1px solid #1e293b;
  border-radius:12px;
  padding:.5rem;
 }
-button:active{transform:scale(.96)}
+button:active{transform:scale(.95)}
 </style>
 </head>
 
@@ -37,15 +37,15 @@ button:active{transform:scale(.96)}
 
 <header class="text-center mb-3">
  <h1 class="text-xl font-bold">🎹 SynthFX</h1>
- <p class="text-[10px] text-gray-400">Live • Safari • USB</p>
+ <p class="text-[10px] text-gray-400">Live • Filter Synth • Safari</p>
 </header>
 
 <section class="section mb-3">
  <label>PRESET</label>
- <select id="presetSelect" class="w-full mt-1"></select>
+ <select id="presetSelect" class="w-full"></select>
  <div class="grid grid-cols-2 gap-2 mt-2">
-  <button id="savePreset" class="text-xs bg-green-700 text-white">SALVAR</button>
-  <button id="deletePreset" class="text-xs bg-red-700 text-white">APAGAR</button>
+  <button id="savePreset" class="bg-green-700 text-xs">SALVAR</button>
+  <button id="deletePreset" class="bg-red-700 text-xs">APAGAR</button>
  </div>
 </section>
 
@@ -60,22 +60,27 @@ button:active{transform:scale(.96)}
 </section>
 
 <section class="section mb-3">
- <label>TREMOLO DEPTH</label>
- <input id="tremoloDepth" type="range" min="0" max="1" step="0.01" value="0.2">
- <label class="mt-2 block">TREMOLO RATE</label>
- <input id="tremoloRate" type="range" min="0.5" max="12" step="0.1" value="4">
+ <label>FILTRO TIPO</label>
+ <select id="filterType" class="w-full mb-2">
+  <option value="lowpass">Low-Pass</option>
+  <option value="highpass">High-Pass</option>
+ </select>
+
+ <label>CUTOFF</label>
+ <input id="cutoff" type="range" min="100" max="12000" step="10" value="4000">
+
+ <label class="mt-2 block">RESONANCE</label>
+ <input id="resonance" type="range" min="0.5" max="15" step="0.1" value="1">
 </section>
 
 <section class="section mb-3">
  <label>DELAY MIX</label>
  <input id="delayMix" type="range" min="0" max="1" step="0.01" value="0.2">
- <label class="mt-2 block">DELAY TIME</label>
- <input id="delayTime" type="range" min="0.05" max="0.6" step="0.01" value="0.3">
 </section>
 
 <section class="section mb-3">
  <label>REVERB MIX</label>
- <input id="reverbMix" type="range" min="0" max="1" step="0.01" value="0.25">
+ <input id="reverbMix" type="range" min="0" max="1" step="0.01" value="0.3">
 </section>
 
 <section class="section">
@@ -83,98 +88,131 @@ button:active{transform:scale(.96)}
  <input id="volume" type="range" min="0" max="1.5" step="0.05" value="1">
 </section>
 
-<footer class="text-center mt-4 text-[9px] text-gray-500">
- SynthFX • Presets Locais • Live Safe
+<footer class="text-center text-[9px] mt-4 text-gray-500">
+ SynthFX • Filter Engine • Live Safe
 </footer>
 
 <script>
-/* ========= AUDIO ========= */
-let ctx, stream, input;
-let gainNode, master;
-let tremoloGain, tremoloLFO, tremoloDepthNode;
-let delayNode, delayFB, delayMixNode;
-let reverb;
-let running=false,inputOn=true;
-
-/* ========= HELPERS ========= */
 const el=id=>document.getElementById(id);
 
-/* ========= PRESETS ========= */
-const FACTORY_PRESETS={
- Clean:{g:3,tD:0,tR:3,dM:0,dT:.3,rM:.1,v:1},
- Pad:{g:4,tD:.15,tR:2,dM:.2,dT:.35,rM:.35,v:1},
- Ambient:{g:4,tD:.2,tR:1.5,dM:.45,dT:.45,rM:.55,v:1},
- Pulse:{g:5,tD:.4,tR:6,dM:.25,dT:.25,rM:.25,v:1}
+let ctx, stream, input;
+let gainNode, filter, delayNode, delayFB, delayMix;
+let reverb, master;
+let running=false;
+
+/* ===== FACTORY PRESETS ===== */
+const FACTORY={
+ Clean:{g:3,f:"lowpass",c:12000,q:.7,d:0,r:.1,v:1},
+ Pad:{g:4,f:"lowpass",c:3500,q:1.2,d:.2,r:.4,v:1},
+ Warm:{g:4,f:"lowpass",c:1800,q:2,d:.3,r:.5,v:1},
+ Thin:{g:3,f:"highpass",c:600,q:.8,d:.1,r:.2,v:1}
 };
 
+/* ===== PRESETS STORAGE ===== */
+function presetsAll(){
+ return {...FACTORY,...JSON.parse(localStorage.getItem("synthfx")||"{}")};
+}
+
 function loadPresets(){
- const saved=JSON.parse(localStorage.getItem("synthfx-presets")||"{}");
- const presets={...FACTORY_PRESETS,...saved};
- el("presetSelect").innerHTML="";
- Object.keys(presets).forEach(p=>{
-  el("presetSelect").append(new Option(p,p));
- });
- applyPreset(presets[Object.keys(presets)[0]]);
+ const s=el("presetSelect");
+ s.innerHTML="";
+ Object.keys(presetsAll()).forEach(p=>s.add(new Option(p,p)));
+ applyPreset(presetsAll()[s.options[0].value]);
 }
 
 function savePreset(){
- const name=prompt("Nome do preset:");
+ const name=prompt("Nome do preset");
  if(!name)return;
- const saved=JSON.parse(localStorage.getItem("synthfx-presets")||"{}");
- saved[name]=currentSettings();
- localStorage.setItem("synthfx-presets",JSON.stringify(saved));
+ const saved=JSON.parse(localStorage.getItem("synthfx")||"{}");
+ saved[name]=state();
+ localStorage.setItem("synthfx",JSON.stringify(saved));
  loadPresets();
 }
 
 function deletePreset(){
  const name=el("presetSelect").value;
- if(FACTORY_PRESETS[name]) return alert("Preset de fábrica não pode ser apagado");
- const saved=JSON.parse(localStorage.getItem("synthfx-presets")||"{}");
- delete saved[name];
- localStorage.setItem("synthfx-presets",JSON.stringify(saved));
+ if(FACTORY[name])return alert("Preset de fábrica");
+ const s=JSON.parse(localStorage.getItem("synthfx")||"{}");
+ delete s[name];
+ localStorage.setItem("synthfx",JSON.stringify(s));
  loadPresets();
 }
 
-function currentSettings(){
+/* ===== AUDIO ===== */
+el("powerBtn").onclick=async()=>{
+ if(!running){
+  ctx=new AudioContext({latencyHint:"interactive",sampleRate:48000});
+  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  input=ctx.createMediaStreamSource(stream);
+
+  gainNode=ctx.createGain();
+  filter=ctx.createBiquadFilter();
+  delayNode=ctx.createDelay(1);
+  delayFB=ctx.createGain();
+  delayMix=ctx.createGain();
+  reverb=ctx.createConvolver();
+  master=ctx.createGain();
+
+  delayNode.connect(delayFB).connect(delayNode);
+  delayNode.connect(delayMix);
+
+  input.connect(gainNode).connect(filter).connect(delayNode);
+  filter.connect(reverb);
+  delayMix.connect(reverb);
+  reverb.connect(master).connect(ctx.destination);
+
+  running=true;
+  el("powerBtn").textContent="DESLIGAR";
+ } else {
+  ctx.close();
+  stream.getTracks().forEach(t=>t.stop());
+  running=false;
+  el("powerBtn").textContent="LIGAR";
+ }
+};
+
+/* ===== CONTROLES ===== */
+["gain","cutoff","resonance","delayMix","reverbMix","volume"].forEach(id=>{
+ el(id).oninput=()=>{
+  if(!filter)return;
+  gainNode.gain.value=el("gain").value;
+  filter.type=el("filterType").value;
+  filter.frequency.value=el("cutoff").value;
+  filter.Q.value=el("resonance").value;
+  delayMix.gain.value=el("delayMix").value;
+  master.gain.value=el("volume").value;
+ };
+});
+
+/* ===== PRESET APPLY ===== */
+function state(){
  return {
   g:+el("gain").value,
-  tD:+el("tremoloDepth").value,
-  tR:+el("tremoloRate").value,
-  dM:+el("delayMix").value,
-  dT:+el("delayTime").value,
-  rM:+el("reverbMix").value,
+  f:el("filterType").value,
+  c:+el("cutoff").value,
+  q:+el("resonance").value,
+  d:+el("delayMix").value,
+  r:+el("reverbMix").value,
   v:+el("volume").value
  };
 }
 
 function applyPreset(p){
  el("gain").value=p.g;
- el("tremoloDepth").value=p.tD;
- el("tremoloRate").value=p.tR;
- el("delayMix").value=p.dM;
- el("delayTime").value=p.dT;
- el("reverbMix").value=p.rM;
+ el("filterType").value=p.f;
+ el("cutoff").value=p.c;
+ el("resonance").value=p.q;
+ el("delayMix").value=p.d;
+ el("reverbMix").value=p.r;
  el("volume").value=p.v;
-
- gainNode&&(gainNode.gain.value=p.g);
- tremoloDepthNode&&(tremoloDepthNode.gain.value=p.tD);
- tremoloLFO&&(tremoloLFO.frequency.value=p.tR);
- delayMixNode&&(delayMixNode.gain.value=p.dM);
- delayNode&&(delayNode.delayTime.value=p.dT);
- master&&(master.gain.value=p.v);
 }
 
-/* ========= EVENTS ========= */
+/* ===== EVENTS ===== */
+el("presetSelect").onchange=e=>applyPreset(presetsAll()[e.target.value]);
 el("savePreset").onclick=savePreset;
 el("deletePreset").onclick=deletePreset;
-el("presetSelect").onchange=e=>{
- const presets={...FACTORY_PRESETS,...JSON.parse(localStorage.getItem("synthfx-presets")||"{}")};
- applyPreset(presets[e.target.value]);
-};
 
 loadPresets();
-
-/* (Audio engine permanece igual ao anterior para estabilidade ao vivo) */
 </script>
 
 </body>
