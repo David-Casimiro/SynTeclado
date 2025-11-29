@@ -12,20 +12,22 @@
 <style>
 html,body{
   background:#020617;
-  color:#e5e7eb;
+  color:#e0f2fe; /* >>> NOVA COR DA FONTE <<< */
   font-family:system-ui,-apple-system,sans-serif;
   touch-action:manipulation;
 }
-canvas{background:#000;border-radius:10px}
+
+h1{color:#7dd3fc}
+label{color:#bae6fd}
+
+canvas{background:#000;border-radius:12px}
+
 .section{
   border:1px solid #1e293b;
   border-radius:18px;
   padding:1rem;
 }
-label{
-  font-size:0.7rem;
-  color:#9ca3af;
-}
+
 input[type=range]{touch-action:none}
 button:active{transform:scale(.96)}
 iframe{border-radius:12px}
@@ -37,20 +39,8 @@ iframe{border-radius:12px}
 <!-- HEADER -->
 <header class="text-center mb-3">
   <h1 class="text-xl font-bold">🎸 BassFX</h1>
-  <p class="text-[10px] text-gray-400">Baixo + Spotify</p>
+  <p class="text-[11px] text-sky-200">Baixo + Spotify</p>
 </header>
-
-<!-- SPOTIFY -->
-<section class="section mb-3">
-  <label>SPOTIFY PLAYER</label>
-  <iframe
-    src="https://open.spotify.com/embed"
-    width="100%"
-    height="80"
-    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-    loading="lazy">
-  </iframe>
-</section>
 
 <!-- VISUAL -->
 <section class="section mb-3">
@@ -70,20 +60,32 @@ iframe{border-radius:12px}
   </button>
 </section>
 
-<!-- INPUT GAIN -->
+<!-- INPUT -->
 <section class="section mb-3">
   <label>INPUT GAIN</label>
   <input id="gain" type="range" min="0" max="10" step="0.1" value="3">
 </section>
 
 <!-- MASTER -->
-<section class="section">
+<section class="section mb-3">
   <label>MASTER VOLUME</label>
   <input id="volume" type="range" min="0" max="1.5" step="0.05" value="0.8">
 </section>
 
-<footer class="text-center mt-4 text-[9px] text-gray-500">
-  BassFX • Tocar junto com Spotify • Mobile
+<!-- SPOTIFY AGORA ABAIXO DO MASTER -->
+<section class="section mb-3">
+  <label>SPOTIFY PLAYER</label>
+  <iframe
+    src="https://open.spotify.com/embed"
+    width="100%"
+    height="80"
+    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+    loading="lazy">
+  </iframe>
+</section>
+
+<footer class="text-center mt-4 text-[10px] text-sky-300">
+  BassFX • Mobile • PWA
 </footer>
 
 <script>
@@ -100,7 +102,7 @@ const c=scope.getContext("2d");
 const gain=document.getElementById("gain");
 const volume=document.getElementById("volume");
 
-/* ----- START / STOP ----- */
+/* ----- POWER ----- */
 powerBtn.onclick=async ()=>{
  if(!running){
   ctx=new AudioContext({
@@ -147,17 +149,17 @@ powerBtn.onclick=async ()=>{
  }
 };
 
-/* ----- MIC ON / OFF ----- */
+/* ----- MIC ON/OFF ----- */
 micBtn.onclick=()=>{
  micOn=!micOn;
- gainNode && (gainNode.gain.value = micOn ? gain.value : 0);
- micBtn.textContent = micOn ? "MIC ON" : "MIC OFF";
- micBtn.classList.toggle("bg-gray-600", !micOn);
+ gainNode&&(gainNode.gain.value=micOn?gain.value:0);
+ micBtn.textContent=micOn?"MIC ON":"MIC OFF";
+ micBtn.classList.toggle("bg-gray-600",!micOn);
 };
 
-/* ----- CONTROLES ----- */
-gain.oninput = e => gainNode && (gainNode.gain.value = e.target.value);
-volume.oninput = e => master && (master.gain.value = e.target.value);
+/* ----- SLIDERS ----- */
+gain.oninput=e=>gainNode&&(gainNode.gain.value=e.target.value);
+volume.oninput=e=>master&&(master.gain.value=e.target.value);
 
 /* ----- VISUAL ----- */
 function draw(){
@@ -172,7 +174,8 @@ function draw(){
 
  c.fillStyle="#000";
  c.fillRect(0,0,scope.width,scope.height);
- c.strokeStyle="#ef4444";
+
+ c.strokeStyle="#38bdf8";
  c.beginPath();
 
  for(let i=0;i<data.length;i+=2){
