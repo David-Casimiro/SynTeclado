@@ -1,2 +1,2 @@
-# AmpBass2.0
-Usar o celular como retorno de fone bluetooth
+# SynTeclado
+Usar o celular como processamento de efeito para teclado
