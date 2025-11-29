@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>BassFX Mobile</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#020617">
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+html,body{
+  background:#020617;
+  color:#e5e7eb;
+  font-family:system-ui,-apple-system,sans-serif;
+  touch-action:manipulation;
+}
+canvas{background:#000;border-radius:10px}
+.section{
+  border:1px solid #1e293b;
+  border-radius:18px;
+  padding:1rem;
+}
+label{
+  font-size:0.7rem;
+  color:#9ca3af;
+}
+input[type=range]{touch-action:none}
+button:active{transform:scale(.96)}
+iframe{border-radius:12px}
+</style>
+</head>
+
+<body class="p-3 max-w-md mx-auto">
+
+<!-- HEADER -->
+<header class="text-center mb-3">
+  <h1 class="text-xl font-bold">🎸 BassFX</h1>
+  <p class="text-[10px] text-gray-400">Baixo + Spotify</p>
+</header>
+
+<!-- SPOTIFY -->
+<section class="section mb-3">
+  <label>SPOTIFY PLAYER</label>
+  <iframe
+    src="https://open.spotify.com/embed"
+    width="100%"
+    height="80"
+    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+    loading="lazy">
+  </iframe>
+</section>
+
+<!-- VISUAL -->
+<section class="section mb-3">
+  <canvas id="scope" class="w-full h-24"></canvas>
+</section>
+
+<!-- BOTÕES -->
+<section class="grid grid-cols-2 gap-3 mb-3">
+  <button id="powerBtn"
+    class="py-4 rounded-xl bg-green-700 font-bold text-white">
+    LIGAR
+  </button>
+
+  <button id="micBtn"
+    class="py-4 rounded-xl bg-yellow-500 font-bold text-black">
+    MIC ON
+  </button>
+</section>
+
+<!-- INPUT GAIN -->
+<section class="section mb-3">
+  <label>INPUT GAIN</label>
+  <input id="gain" type="range" min="0" max="10" step="0.1" value="3">
+</section>
+
+<!-- MASTER -->
+<section class="section">
+  <label>MASTER VOLUME</label>
+  <input id="volume" type="range" min="0" max="1.5" step="0.05" value="0.8">
+</section>
+
+<footer class="text-center mt-4 text-[9px] text-gray-500">
+  BassFX • Tocar junto com Spotify • Mobile
+</footer>
+
+<script>
+/* ================= AUDIO ENGINE ================= */
+
+let ctx, mic, gainNode, master, analyser, stream;
+let running=false, micOn=true;
+
+const powerBtn=document.getElementById("powerBtn");
+const micBtn=document.getElementById("micBtn");
+const scope=document.getElementById("scope");
+const c=scope.getContext("2d");
+
+const gain=document.getElementById("gain");
+const volume=document.getElementById("volume");
+
+/* ----- START / STOP ----- */
+powerBtn.onclick=async ()=>{
+ if(!running){
+  ctx=new AudioContext({
+    latencyHint:"interactive",
+    sampleRate:44100
+  });
+
+  stream=await navigator.mediaDevices.getUserMedia({
+    audio:{
+      echoCancellation:false,
+      noiseSuppression:false,
+      autoGainControl:false,
+      channelCount:1
+    }
+  });
+
+  mic=ctx.createMediaStreamSource(stream);
+
+  gainNode=ctx.createGain();
+  gainNode.gain.value=gain.value;
+
+  master=ctx.createGain();
+  master.gain.value=volume.value;
+
+  analyser=ctx.createAnalyser();
+  analyser.fftSize=1024;
+
+  mic.connect(gainNode)
+     .connect(master)
+     .connect(analyser)
+     .connect(ctx.destination);
+
+  running=true;
+  powerBtn.textContent="DESLIGAR";
+  powerBtn.classList.replace("bg-green-700","bg-red-700");
+  draw();
+
+ } else {
+  ctx.close();
+  stream.getTracks().forEach(t=>t.stop());
+  running=false;
+  powerBtn.textContent="LIGAR";
+  powerBtn.classList.replace("bg-red-700","bg-green-700");
+ }
+};
+
+/* ----- MIC ON / OFF ----- */
+micBtn.onclick=()=>{
+ micOn=!micOn;
+ gainNode && (gainNode.gain.value = micOn ? gain.value : 0);
+ micBtn.textContent = micOn ? "MIC ON" : "MIC OFF";
+ micBtn.classList.toggle("bg-gray-600", !micOn);
+};
+
+/* ----- CONTROLES ----- */
+gain.oninput = e => gainNode && (gainNode.gain.value = e.target.value);
+volume.oninput = e => master && (master.gain.value = e.target.value);
+
+/* ----- VISUAL ----- */
+function draw(){
+ if(!running) return;
+ requestAnimationFrame(draw);
+
+ scope.width=scope.offsetWidth;
+ scope.height=scope.offsetHeight;
+
+ const data=new Uint8Array(analyser.fftSize);
+ analyser.getByteTimeDomainData(data);
+
+ c.fillStyle="#000";
+ c.fillRect(0,0,scope.width,scope.height);
+ c.strokeStyle="#ef4444";
+ c.beginPath();
+
+ for(let i=0;i<data.length;i+=2){
+  const x=i*scope.width/data.length;
+  const y=(data[i]/255)*scope.height;
+  i?c.lineTo(x,y):c.moveTo(x,y);
+ }
+ c.stroke();
+}
+
+/* ----- PWA ----- */
+if('serviceWorker' in navigator){
+ navigator.serviceWorker.register(
+  URL.createObjectURL(
+   new Blob(
+    [`self.addEventListener("fetch",e=>e.respondWith(fetch(e.request)))`],
+    {type:"application/javascript"}
+   )
+  )
+ );
+}
+</script>
+
+</body>
+</html>
